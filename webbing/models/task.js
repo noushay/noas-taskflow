@@ -1,36 +1,30 @@
-import { DataTypes } from 'sequelize';
-import sequelize from '../databaseconnection.js';
-
-console.log("TASK MODEL LOADED");
+import { DataTypes } from "sequelize";
+import sequelize from "../databaseconnection.js";
 
 const Task = sequelize.define(
-  'Task',
+  "Task",
   {
     id: {
       type: DataTypes.INTEGER,
       autoIncrement: true,
-      primaryKey: true
+      primaryKey: true,
     },
     title: {
       type: DataTypes.STRING,
-      allowNull: false
+      allowNull: false,
     },
     description: {
-        type: DataTypes.STRING,
-        allowNull: true
-      },
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     completed: {
       type: DataTypes.BOOLEAN,
-      defaultValue: false
+      defaultValue: false,
     },
-    createdAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW
-    }
   },
   {
-    tableName: 'tasks',
-    timestamps: false
+    tableName: "tasks",
+    timestamps: true,
   }
 );
 
