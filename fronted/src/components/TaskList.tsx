@@ -25,6 +25,8 @@ function TaskList() {
   const [toggleError, setToggleError] = useState("");
   const [editError, setEditError] = useState("");
 
+  const [searchTerm, setSearchTerm] = useState("");
+
   useEffect(() => {
     fetchTasks();
   }, []);
@@ -206,6 +208,14 @@ function TaskList() {
     }
   }
 
+  const filteredTasks = tasks.filter((task) => {
+    const search = searchTerm.toLowerCase();
+    return (
+      task.title.toLowerCase().includes(search) ||
+      (task.description ?? "").toLowerCase().includes(search)
+    );
+  });
+
   return (
     <div className="task-list-wrapper">
       <div className="task-top-bar">
@@ -218,6 +228,22 @@ function TaskList() {
           🧚 Add Task
         </button>
       </div>
+
+      <input
+        type="text"
+        placeholder="🔎 Search tasks..."
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        className="task-search-input"
+        style={{
+          margin: "10px 0 15px 0",
+          padding: "10px 14px",
+          borderRadius: "12px",
+          border: "1px solid #ddd",
+          width: "100%",
+          fontSize: "14px",
+        }}
+      />
 
       {isAddModalOpen && (
         <div className="custom-modal-overlay">
@@ -291,13 +317,13 @@ function TaskList() {
           <div className="pretty-loader"></div>
           <p className="pretty-state-text">Loading your fairy tasks...</p>
         </div>
-      ) : tasks.length === 0 ? (
+      ) : filteredTasks.length === 0 ? (
         <div className="pretty-state-box">
-          <p className="pretty-state-text">No tasks yet 🌸</p>
+          <p className="pretty-state-text">No matching tasks 🌸</p>
         </div>
       ) : (
         <div className="task-items-section">
-          {tasks.map((task) => (
+          {filteredTasks.map((task) => (
             <TaskItem
               key={task.id}
               task={task}

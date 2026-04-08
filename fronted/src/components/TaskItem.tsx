@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Task } from "./TaskList";
 
 type Props = {
@@ -32,6 +32,19 @@ function TaskItem({ task, onToggle, onDelete, onSaveEdit }: Props) {
   const [editedDescription, setEditedDescription] = useState(
     task.description || ""
   );
+  const [showConfetti, setShowConfetti] = useState(false);
+
+  useEffect(() => {
+    if (task.completed) {
+      setShowConfetti(true);
+
+      const timer = setTimeout(() => {
+        setShowConfetti(false);
+      }, 700);
+
+      return () => clearTimeout(timer);
+    }
+  }, [task.completed]);
 
   function handleSaveEdit() {
     if (!editedTitle.trim()) return;
@@ -51,7 +64,11 @@ function TaskItem({ task, onToggle, onDelete, onSaveEdit }: Props) {
     new Date(task.updatedAt).getTime() !== new Date(task.createdAt).getTime();
 
   return (
-    <div className={`task-item-card ${task.completed ? "task-completed-card" : ""}`}>
+    <div
+      className={`task-item-card ${task.completed ? "task-completed-card" : ""} ${
+        showConfetti ? "confetti-burst" : ""
+      }`}
+    >
       <input
         className="task-checkbox"
         type="checkbox"
