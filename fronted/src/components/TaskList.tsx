@@ -1,32 +1,45 @@
-import { useEffect, useState } from "react";// import the function
-/*לחזור שוב על סוגי הפונקציות  */
-import TaskItem from "./TaskItem";//יבוא קומפוננטה 
+import { useEffect, useState } from "react";
+import TaskItem from "./TaskItem";
 
-type Task = {// Task tamplate object
+export type Task = {
   id: number;
   title: string;
-  description: string;
+  description?: string;
   completed: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 function TaskList() {
   const [tasks, setTasks] = useState<Task[]>([]);
-
   const [isLoading, setIsLoading] = useState(false);
   const [fetchError, setFetchError] = useState("");
 
-  const [newTask, setNewTask] = useState("");
-  const [newDescription, setNewDescription] = useState("");
-
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [newTaskDescription, setNewTaskDescription] = useState("");
   const [addError, setAddError] = useState("");
+
+  const [deleteTaskId, setDeleteTaskId] = useState<number | null>(null);
   const [deleteError, setDeleteError] = useState("");
   const [toggleError, setToggleError] = useState("");
+  const [editError, setEditError] = useState("");
+
+  const [searchTerm, setSearchTerm] = useState("");
+
+  useEffect(() => {
+    fetchTasks();
+  }, []);
+
+  function sortTasks(taskList: Task[]) {
+    const unfinishedTasks = taskList.filter((task) => !task.completed);
+    const finishedTasks = taskList.filter((task) => task.completed);
+    return [...unfinishedTasks, ...finishedTasks];
+  }
 
   async function fetchTasks() {
     setIsLoading(true);
     setFetchError("");
-
-    const startTime = Date.now();
 
     try {
       const response = await fetch("http://localhost:3000/tasks");
@@ -36,64 +49,20 @@ function TaskList() {
       }
 
       const data: Task[] = await response.json();
-      setTasks(data);
-    } catch (err) {
-      setFetchError("Oops, the server failed. Please try again.");
-      console.log(err);
+      setTasks(sortTasks(data));
+    } catch (error) {
+      console.log(error);
+      setFetchError("Oops, failed to load tasks.");
     } finally {
-      const elapsed = Date.now() - startTime;
-      const minLoadingTime = 500;
-
-      if (elapsed < minLoadingTime) {
-        setTimeout(() => {
-          setIsLoading(false);
-        }, minLoadingTime - elapsed);
-      } else {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
     }
   }
 
-  useEffect(() => {
-    fetchTasks();
-  }, []);
-
-  async function handleToggle(id: number) {
-    setToggleError("");
-
-    const taskToUpdate = tasks.find((task) => task.id === id);
-
-    if (!taskToUpdate) return;
-
-    const updatedTask = {
-      ...taskToUpdate,
-      completed: !taskToUpdate.completed,
-    };
-
-    try {
-      const response = await fetch(`http://localhost:3000/tasks/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updatedTask),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to update task");
-      }
-
-      setTasks((prevTasks) =>
-        prevTasks.map((task) => (task.id === id ? updatedTask : task))
-      );
-    } catch (err) {
-      console.log(err);
-      setToggleError("Failed to update task");
+  async function addTask() {
+    if (!newTaskTitle.trim()) {
+      setAddError("Please enter a task title.");
+      return;
     }
-  }
-
-  async function handleAddTask() {
-    if (!newTask.trim()) return;
 
     setAddError("");
 
@@ -104,98 +73,266 @@ function TaskList() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          title: newTask,
-          description: newDescription,
+          title: newTaskTitle,
+          description: newTaskDescription,
           completed: false,
         }),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to create task");
+        throw new Error("Failed to add task");
       }
 
-      const data: Task = await response.json();
+      const createdTask: Task = await response.json();
 
-      setTasks([...tasks, data]);
-      setNewTask("");
-      setNewDescription("");
-    } catch (err) {
-      console.log(err);
-      setAddError("Failed to add task");
+      setTasks((currentTasks) => [createdTask, ...currentTasks]);
+      setNewTaskTitle("");
+      setNewTaskDescription("");
+      setIsAddModalOpen(false);
+    } catch (error) {
+      console.log(error);
+      setAddError("Oops, failed to save the task.");
     }
   }
 
-  async function handleDeleteTask(id: number) {
-    setDeleteError("");
+  async function toggleTask(id: number) {
+    setToggleError("");
+
+    const taskToUpdate = tasks.find((task) => task.id === id);
+    if (!taskToUpdate) return;
+
+    const updatedCompletedValue = !taskToUpdate.completed;
 
     try {
       const response = await fetch(`http://localhost:3000/tasks/${id}`, {
-        method: "DELETE",
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: taskToUpdate.title,
+          description: taskToUpdate.description,
+          completed: updatedCompletedValue,
+        }),
       });
+
+      if (!response.ok) {
+        throw new Error("Failed to update task");
+      }
+
+      const updatedTask: Task = await response.json();
+
+      setTasks((currentTasks) =>
+        sortTasks(
+          currentTasks.map((task) =>
+            task.id === id ? updatedTask : task
+          )
+        )
+      );
+    } catch (error) {
+      console.log(error);
+      setToggleError("Oops, failed to update the task.");
+    }
+  }
+
+  async function saveEditedTask(
+    id: number,
+    updatedTitle: string,
+    updatedDescription: string
+  ) {
+    setEditError("");
+
+    const taskToUpdate = tasks.find((task) => task.id === id);
+    if (!taskToUpdate) return;
+
+    try {
+      const response = await fetch(`http://localhost:3000/tasks/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: updatedTitle,
+          description: updatedDescription,
+          completed: taskToUpdate.completed,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to edit task");
+      }
+
+      const updatedTask: Task = await response.json();
+
+      setTasks((currentTasks) =>
+        currentTasks.map((task) => (task.id === id ? updatedTask : task))
+      );
+    } catch (error) {
+      console.log(error);
+      setEditError("Oops, failed to edit the task.");
+    }
+  }
+
+  function askDeleteTask(id: number) {
+    setDeleteTaskId(id);
+  }
+
+  function cancelDeleteTask() {
+    setDeleteTaskId(null);
+  }
+
+  async function confirmDeleteTask() {
+    if (deleteTaskId === null) return;
+
+    setDeleteError("");
+
+    try {
+      const response = await fetch(
+        `http://localhost:3000/tasks/${deleteTaskId}`,
+        {
+          method: "DELETE",
+        }
+      );
 
       if (!response.ok) {
         throw new Error("Failed to delete task");
       }
 
-      const updatedTasks = tasks.filter((task) => task.id !== id);
-      setTasks(updatedTasks);
-    } catch (err) {
-      console.log(err);
-      setDeleteError("Failed to delete task");
+      setTasks((currentTasks) =>
+        currentTasks.filter((task) => task.id !== deleteTaskId)
+      );
+      setDeleteTaskId(null);
+    } catch (error) {
+      console.log(error);
+      setDeleteError("Oops, failed to delete the task.");
     }
   }
 
+  const filteredTasks = tasks.filter((task) => {
+    const search = searchTerm.toLowerCase();
+    return (
+      task.title.toLowerCase().includes(search) ||
+      (task.description ?? "").toLowerCase().includes(search)
+    );
+  });
+
   return (
-    <div className="task-list">
-      <h3 className="task-list-title">🌷 </h3>
+    <div className="task-list-wrapper">
+      <div className="task-top-bar">
+        <h2 className="task-heading">🧚 My Tasks</h2>
+
+        <button
+          className="open-add-task-button"
+          onClick={() => setIsAddModalOpen(true)}
+        >
+          🧚 Add Task
+        </button>
+      </div>
+
+      <input
+        type="text"
+        placeholder="🔎 Search tasks..."
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        className="task-search-input"
+        style={{
+          margin: "10px 0 15px 0",
+          padding: "10px 14px",
+          borderRadius: "12px",
+          border: "1px solid #ddd",
+          width: "100%",
+          fontSize: "14px",
+        }}
+      />
+
+      {isAddModalOpen && (
+        <div className="custom-modal-overlay">
+          <div className="custom-modal-card modal-enter">
+            <h3 className="custom-modal-title">🧚 Add New Task</h3>
+
+            <input
+              className="task-input"
+              type="text"
+              placeholder="🧚 Enter task title"
+              value={newTaskTitle}
+              onChange={(event) => setNewTaskTitle(event.target.value)}
+            />
+
+            <textarea
+              className="task-textarea"
+              placeholder="🧚 Add task description"
+              value={newTaskDescription}
+              onChange={(event) => setNewTaskDescription(event.target.value)}
+            />
+
+            {addError && <p className="task-error">{addError}</p>}
+
+            <div className="custom-modal-actions">
+              <button className="save-task-button" onClick={addTask}>
+                💾 Save
+              </button>
+              <button
+                className="cancel-task-button"
+                onClick={() => {
+                  setIsAddModalOpen(false);
+                  setNewTaskTitle("");
+                  setNewTaskDescription("");
+                  setAddError("");
+                }}
+              >
+                🌸 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTaskId !== null && (
+        <div className="custom-modal-overlay">
+          <div className="custom-modal-card delete-modal-card modal-enter">
+            <h3 className="custom-modal-title">🗑️ Delete Task</h3>
+            <p className="delete-modal-text">
+              Are you sure you want to delete this task?
+            </p>
+
+            <div className="custom-modal-actions">
+              <button className="delete-confirm-button" onClick={confirmDeleteTask}>
+                Yes, Delete
+              </button>
+              <button className="cancel-task-button" onClick={cancelDeleteTask}>
+                Keep It
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {fetchError && <p className="task-error">{fetchError}</p>}
+      {toggleError && <p className="task-error">{toggleError}</p>}
+      {deleteError && <p className="task-error">{deleteError}</p>}
+      {editError && <p className="task-error">{editError}</p>}
 
       {isLoading ? (
         <div className="pretty-state-box">
           <div className="pretty-loader"></div>
-          <p className="pretty-state-text">Loading tasks...</p>
+          <p className="pretty-state-text">Loading your fairy tasks...</p>
         </div>
-      ) : fetchError ? (
-        <div className="pretty-state-box error-state-box">
-          <div className="pretty-error-icon">✕</div>
-          <p className="pretty-state-text">{fetchError}</p>
+      ) : filteredTasks.length === 0 ? (
+        <div className="pretty-state-box">
+          <p className="pretty-state-text">No matching tasks 🌸</p>
         </div>
       ) : (
-        <>
-          <div className="add-task">
-            <input
-              type="text"
-              placeholder="✨ Add a new task..."
-              value={newTask}
-              onChange={(e) => setNewTask(e.target.value)}
+        <div className="task-items-section">
+          {filteredTasks.map((task) => (
+            <TaskItem
+              key={task.id}
+              task={task}
+              onToggle={toggleTask}
+              onDelete={askDeleteTask}
+              onSaveEdit={saveEditedTask}
             />
-
-            <input
-              type="text"
-              placeholder="📝 Add description..."
-              value={newDescription}
-              onChange={(e) => setNewDescription(e.target.value)}
-            />
-
-            <button onClick={handleAddTask}>✨ Add</button>
-          </div>
-
-          {addError && <p className="action-error-text">{addError}</p>}
-          {deleteError && <p className="action-error-text">{deleteError}</p>}
-          {toggleError && <p className="action-error-text">{toggleError}</p>}
-
-          {tasks.length === 0 ? (
-            <p className="empty-text">No tasks yet</p>
-          ) : (
-            tasks.map((task) => (
-              <TaskItem
-                key={task.id}
-                task={task}
-                onToggle={handleToggle}
-                onDelete={handleDeleteTask}
-              />
-            ))
-          )}
-        </>
+          ))}
+        </div>
       )}
     </div>
   );
